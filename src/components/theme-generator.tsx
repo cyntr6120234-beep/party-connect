@@ -91,7 +91,7 @@ export function ThemeGenerator({ form: partyForm }: ThemeGeneratorProps) {
             </CardHeader>
             <CardContent className="p-2">
               <Form {...themeForm}>
-                <form onSubmit={themeForm.handleSubmit(handleGenerateThemes)} className="space-y-4">
+                <div className="space-y-4">
                   <FormField
                     control={themeForm.control}
                     name="guestType"
@@ -129,7 +129,7 @@ export function ThemeGenerator({ form: partyForm }: ThemeGeneratorProps) {
                       </FormItem>
                     )}
                   />
-                  <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
+                  <Button type="button" onClick={themeForm.handleSubmit(handleGenerateThemes)} disabled={isLoading} className="w-full sm:w-auto">
                     {isLoading ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : (
@@ -137,7 +137,7 @@ export function ThemeGenerator({ form: partyForm }: ThemeGeneratorProps) {
                     )}
                     Generate Ideas
                   </Button>
-                </form>
+                </div>
               </Form>
 
               {isLoading && (
