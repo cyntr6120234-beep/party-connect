@@ -61,12 +61,27 @@ export function PartyForm() {
 
     const result = await createParty(formData);
 
-    if (result.partyId) {
+    if (result?.partyId) {
       toast({
         title: "Party Created!",
         description: "Your party has been successfully created. Redirecting...",
       });
       router.push(`/party/${result.partyId}`);
+    } else if (result?.errors) {
+      Object.entries(result.errors).forEach(([key, value]) => {
+        if (key === "_form") {
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: (value as string[]).join(", "),
+          });
+        } else {
+          form.setError(key as keyof PartyFormValues, {
+            type: "server",
+            message: (value as string[]).join(", "),
+          });
+        }
+      });
     } else {
       toast({
         variant: "destructive",

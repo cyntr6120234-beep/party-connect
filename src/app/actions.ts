@@ -14,11 +14,11 @@ import { revalidatePath } from "next/cache";
 import { generatePartyThemes as AIGeneratePartyThemes, PartyThemeGeneratorInput } from "@/ai/flows/party-theme-generator";
 
 const PartyFormSchema = z.object({
-  occasion: z.string().min(1, "Occasion is required."),
-  description: z.string().min(1, "Description is required."),
-  location: z.string().min(1, "Location is required."),
-  date: z.date({ required_error: "Date is required." }),
-  time: z.string().min(1, "Time is required."),
+  occasion: z.string().min(3, { message: "Occasion must be at least 3 characters." }),
+  description: z.string().min(10, { message: "Description must be at least 10 characters." }),
+  location: z.string().min(3, { message: "Location must be at least 3 characters." }),
+  date: z.date({ required_error: "A date for the party is required." }),
+  time: z.string().min(1, { message: "A time for the party is required." }),
 });
 
 export async function createParty(formData: FormData) {
@@ -58,6 +58,7 @@ export async function createParty(formData: FormData) {
       createdAt: Timestamp.now(),
       attendees: [],
     });
+    revalidatePath(`/party/${docRef.id}`);
     return { partyId: docRef.id };
   } catch (error) {
     console.error("Error creating party:", error);
