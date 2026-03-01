@@ -1,0 +1,245 @@
+{
+  "entities": {
+    "Party": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Party",
+      "type": "object",
+      "description": "Represents a single party event created and managed by an organizer within the PartyConnect app.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Party entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name or title of the party event."
+        },
+        "description": {
+          "type": "string",
+          "description": "A detailed description of the party, including agenda or special notes."
+        },
+        "dateTime": {
+          "type": "string",
+          "description": "The date and time when the party is scheduled to take place.",
+          "format": "date-time"
+        },
+        "location": {
+          "type": "string",
+          "description": "The physical or virtual location where the party will be held."
+        },
+        "invitationLink": {
+          "type": "string",
+          "description": "A unique, shareable URI for guests to access party details and RSVP.",
+          "format": "uri"
+        },
+        "organizerId": {
+          "type": "string",
+          "description": "Reference to the User who created and manages this party. (Relationship: User 1:N Party)"
+        },
+        "themeSuggestion": {
+          "type": "string",
+          "description": "An AI-generated suggestion for the party theme, based on event details."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the party record was first created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the party record was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "dateTime",
+        "location",
+        "invitationLink",
+        "organizerId",
+        "createdAt"
+      ]
+    },
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents an individual interacting with the PartyConnect app, either as a party organizer or a guest. This entity does NOT store authentication credentials. User IDs for organizers might be managed client-side for persistence, while guest IDs can be generated on-the-fly for temporary interactions like chat or RSVP.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the User entity."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "The display name chosen by the user, for example, for chat or RSVP purposes. This can be a temporary name for guests."
+        }
+      },
+      "required": [
+        "id",
+        "displayName"
+      ]
+    },
+    "RSVP": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "RSVP",
+      "type": "object",
+      "description": "Records a guest's response to a party invitation, indicating their attendance status.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the RSVP entity."
+        },
+        "partyId": {
+          "type": "string",
+          "description": "Reference to the Party event for which this RSVP was made. (Relationship: Party 1:N RSVP)"
+        },
+        "guestId": {
+          "type": "string",
+          "description": "Reference to the User (guest) who made this RSVP. (Relationship: User 1:N RSVP)"
+        },
+        "status": {
+          "type": "string",
+          "description": "The attendance status of the guest (e.g., 'Attending', 'Declined', 'Maybe')."
+        },
+        "respondedAt": {
+          "type": "string",
+          "description": "Timestamp when the guest submitted their RSVP.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "partyId",
+        "guestId",
+        "status",
+        "respondedAt"
+      ]
+    },
+    "ChatMessage": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ChatMessage",
+      "type": "object",
+      "description": "Represents a single message sent within a specific party's real-time chat.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the ChatMessage entity."
+        },
+        "partyId": {
+          "type": "string",
+          "description": "Reference to the Party event this message belongs to. (Relationship: Party 1:N ChatMessage)"
+        },
+        "senderId": {
+          "type": "string",
+          "description": "Reference to the User who sent this message. (Relationship: User 1:N ChatMessage)"
+        },
+        "senderDisplayName": {
+          "type": "string",
+          "description": "The display name of the sender at the time the message was sent. This is stored explicitly to preserve the name even if the user's current display name changes."
+        },
+        "content": {
+          "type": "string",
+          "description": "The actual text content of the chat message."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Timestamp when the message was sent.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "partyId",
+        "senderId",
+        "senderDisplayName",
+        "content",
+        "timestamp"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores individual user profiles, where 'userId' corresponds to the Firebase Authentication UID. Used for both organizers (with persistent UIDs) and temporary guests (with session-based anonymous UIDs).",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique Firebase Authentication UID of the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/parties/{partyId}",
+        "definition": {
+          "entityName": "Party",
+          "schema": {
+            "$ref": "#/backend/entities/Party"
+          },
+          "description": "Stores details for each party event. Includes 'organizerId' for authorization independence, allowing organizers to manage their own parties and guests to view specific party details via a direct ID lookup (e.g., from an invitation link).",
+          "params": [
+            {
+              "name": "partyId",
+              "description": "The unique identifier for a party event."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/parties/{partyId}/rsvps/{rsvpId}",
+        "definition": {
+          "entityName": "RSVP",
+          "schema": {
+            "$ref": "#/backend/entities/RSVP"
+          },
+          "description": "Contains guest RSVP responses for a specific party. Includes denormalized 'partyOrganizerId' for authorization independence, allowing the organizer to view all RSVPs and guests to manage their own, without hierarchical lookups.",
+          "params": [
+            {
+              "name": "partyId",
+              "description": "The unique identifier of the parent party event."
+            },
+            {
+              "name": "rsvpId",
+              "description": "The unique identifier for the RSVP response."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/parties/{partyId}/chatMessages/{messageId}",
+        "definition": {
+          "entityName": "ChatMessage",
+          "schema": {
+            "$ref": "#/backend/entities/ChatMessage"
+          },
+          "description": "Stores real-time chat messages for a specific party. Includes denormalized 'partyOrganizerId' for authorization independence (e.g., for organizer-specific read access if needed) and 'senderId' for message ownership. Designed to allow all authenticated (anonymous) participants to read and send messages within a party.",
+          "params": [
+            {
+              "name": "partyId",
+              "description": "The unique identifier of the parent party event."
+            },
+            {
+              "name": "messageId",
+              "description": "The unique identifier for a chat message."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to adhere strictly to the core design principles, particularly Authorization Independence, Structural Segregation, and DBAC, while accounting for the 'no authentication' requirement for guests by leveraging anonymous Firebase Authentication. We use hierarchical paths for user-owned data where appropriate, and a flat collection for public-facing entities like 'Party' to simplify access for invited guests.\n\n1.  **Users (`/users/{userId}`):** This collection stores public user profiles. Each document ID (`userId`) will correspond to the Firebase Authentication `uid` (whether an organizer's persistent anonymous UID or a guest's temporary anonymous UID). This structure makes ownership clear for profile data (`request.auth.uid == userId`) and supports QAPs for listing user-specific data (though not directly applicable here as user profiles are typically fetched by ID).\n\n2.  **Parties (`/parties/{partyId}`):** Party events are stored in a top-level collection. This is a critical decision to support both organizer-specific management and guest-facing public readability via an invitation link. Each `Party` document includes an `organizerId` field. This directly supports **Authorization Independence** as security rules can verify `request.auth.uid == resource.data.organizerId` without requiring `get()` calls to a parent user document. For guests, direct `get()` access to a specific party document via its `partyId` (from the invitation link) is allowed, fulfilling QAPs for guests by not requiring a list query. Organizers can list their own parties by querying `where('organizerId', '==', request.auth.uid)`, which also adheres to QAPs.\n\n3.  **RSVPs (`/parties/{partyId}/rsvps/{rsvpId}`):** RSVP records are nested as a subcollection under their respective Party. To ensure **Authorization Independence**, each `RSVP` document explicitly denormalizes the `partyOrganizerId` from its parent `Party` document. This allows security rules to grant read access to the party organizer (e.g., `request.auth.uid == resource.data.partyOrganizerId`) and write/read access to the guest who made the RSVP (e.g., `request.auth.uid == resource.data.guestId`) without relying on `get()` calls to the parent `Party` document. QAPs are supported for organizers to list all RSVPs for their party by querying this subcollection.\n\n4.  **Chat Messages (`/parties/{partyId}/chatMessages/{messageId}`):** Chat messages are also nested under their respective Party. Similar to RSVPs, each `ChatMessage` document denormalizes the `partyOrganizerId` to allow organizer read access. The `senderId` field (corresponding to `request.auth.uid`) ensures a sender can only create/update their own messages. For 'real-time two-way chat' between all participants without complex `get()` calls for membership, read access to chat messages within a specific party is granted to any authenticated (including anonymous) user (`request.auth.uid != null`) who knows the `partyId`. This balances the 'no authentication' requirement for guests with the chat feature. QAPs are supported for all participants to list messages within a party due to the permissive read rule scoped to the party path."
+  }
+}

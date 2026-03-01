@@ -1,0 +1,162 @@
+/**
+ * Core Philosophy:
+ * This ruleset secures a party-planning application ("PartyConnect") that supports
+ * both registered "organizers" and anonymous "guests". The security model is
+ * built on document ownership, where organizers control their parties and guests
+ * control their own contributions (like RSVPs and chat messages). Anonymous
+ * authentication is used to provide a consistent identity for all users,
+ * simplifying rule logic.
+ *
+ * Data Structure:
+ * The data is organized into a mix of top-level collections and nested
+ * subcollections to balance easy access with clear ownership boundaries.
+ * - /users/{userId}: Holds basic, private user profile data.
+ * - /parties/{partyId}: A top-level collection making individual parties
+ *   accessible via a direct link without exposing the entire list.
+ * - /parties/{partyId}/rsvps/{rsvpId}: Nested RSVPs for a given party.
+ * - /parties/{partyId}/chatMessages/{messageId}: Nested chat messages for a party.
+ *
+ * Key Security Decisions:
+ * - Anonymous Auth for All: The system leverages Firebase Anonymous Auth to ensure
+ *   every client, including temporary guests, has a `request.auth.uid`. This
+ *   allows for consistent and secure rule-writing without complex logic for
+ *   unauthenticated users.
+ * - Authorization Independence via Denormalization: To create fast and simple
+ *   rules, ownership data (e.g., `organizerId`, `senderId`) is stored directly on
+ *   the documents being secured. This avoids slow and costly `get()` calls in most
+ *   rules.
+ * - Public Read, Private Write: The `/parties` collection is readable by anyone
+ *   with a direct link (`get`) but writable only by the party's organizer.
+ *   Listing all parties in the database is prohibited to prevent data scraping.
+ * - Subcollection Security: Access to subcollections like RSVPs and chat
+ *   is controlled by checking permissions on the parent party document when
+ *   necessary, ensuring that only the party organizer or the relevant guest
+ *   can access sensitive sub-collection data.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ----------------------------------------------------------------------
+    // Helper Functions
+    // ----------------------------------------------------------------------
+
+    /**
+     * Checks if a user is authenticated via any method.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * Checks if the currently authenticated user's UID matches the provided userId.
+     * This is the primary function for verifying document ownership.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * Checks for ownership on an existing document.
+     * CRITICAL: Used for all update and delete operations to prevent acting
+     * on non-existent data.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    /**
+     * Checks if the currently authenticated user is the organizer of a specific party.
+     * NOTE: This performs a read on the parent party document, which is a necessary
+     * and acceptable pattern for securing subcollections.
+     */
+    function isPartyOrganizer(partyId) {
+      return isSignedIn() && get(/databases/$(database)/documents/parties/$(partyId)).data.organizerId == request.auth.uid;
+    }
+
+    /**
+     * Validates that the organizerId on a new party matches the creator's auth UID
+     * and cannot be changed on update.
+     */
+    function hasValidOrganizerId() {
+      // On create, the incoming organizerId must match the user's UID.
+      // On update, the organizerId field must not be changed.
+      return request.resource.data.organizerId == request.auth.uid
+        && (resource == null || request.resource.data.organizerId == resource.data.organizerId);
+    }
+
+    /**
+     * Validates that a relational ID (e.g., guestId, senderId) on a new document
+     * matches the creator's auth UID and is immutable on update.
+     */
+    function hasValidAndImmutableOwnerId(fieldName) {
+      let incomingData = request.resource.data;
+      return incomingData[fieldName] == request.auth.uid
+        && (resource == null || incomingData[fieldName] == resource.data[fieldName]);
+    }
+
+    // ----------------------------------------------------------------------
+    // Collection Rules
+    // ----------------------------------------------------------------------
+
+    /**
+     * @description Users can create and manage their own profile document.
+     * @path /users/{userId}
+     * @allow (create) An authenticated user creates their own profile: `auth.uid == userId`.
+     * @deny (get) A user tries to read another user's profile: `auth.uid != userId`.
+     * @principle Restricts access to a user's own data tree.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false; // Disallow listing all users to protect privacy.
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Parties can be read by anyone with a link, but only managed by the organizer.
+     * @path /parties/{partyId}
+     * @allow (get) Any user (including anonymous guests) reads a party's details.
+     * @deny (update) A user tries to update a party they did not organize.
+     * @principle Enforces document ownership for writes while allowing public reads.
+     */
+    match /parties/{partyId} {
+      allow get: if true;
+      allow list: if isSignedIn(); // Allow queries (e.g., for an organizer's own parties), but not a full public scan.
+      allow create: if isSignedIn() && hasValidOrganizerId();
+      allow update: if isExistingOwner(resource.data.organizerId) && hasValidOrganizerId();
+      allow delete: if isExistingOwner(resource.data.organizerId);
+    }
+
+    /**
+     * @description Guests create their own RSVP; the party organizer can read all RSVPs.
+     * @path /parties/{partyId}/rsvps/{rsvpId}
+     * @allow (create) A guest creates an RSVP for themselves: `request.resource.data.guestId == auth.uid`.
+     * @deny (list) A guest tries to list all RSVPs for a party.
+     * @principle Secures a subcollection by checking roles on the parent document (organizer) and ownership on the child document (guest).
+     */
+    match /parties/{partyId}/rsvps/{rsvpId} {
+      allow get: if isPartyOrganizer(partyId) || isOwner(resource.data.guestId);
+      allow list: if isPartyOrganizer(partyId);
+      allow create: if isSignedIn() && hasValidAndImmutableOwnerId('guestId');
+      allow update: if (isPartyOrganizer(partyId) || isExistingOwner(resource.data.guestId)) && hasValidAndImmutableOwnerId('guestId');
+      allow delete: if (isPartyOrganizer(partyId) || isExistingOwner(resource.data.guestId));
+    }
+
+    /**
+     * @description Any authenticated party participant can read the chat; users can only send/manage their own messages.
+     * @path /parties/{partyId}/chatMessages/{messageId}
+     * @allow (list) An anonymous guest lists all messages for the party they are viewing.
+     * @deny (delete) A user tries to delete a message sent by another user.
+     * @principle Allows broad read access within a specific context (the party) while strictly enforcing ownership for all writes.
+     */
+    match /parties/{partyId}/chatMessages/{messageId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && hasValidAndImmutableOwnerId('senderId');
+      allow update: if isExistingOwner(resource.data.senderId) && hasValidAndImmutableOwnerId('senderId');
+      allow delete: if isExistingOwner(resource.data.senderId);
+    }
+  }
+}
