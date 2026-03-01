@@ -1,21 +1,40 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { doc, collection, query, orderBy } from "firebase/firestore";
-import { notFound } from "next/navigation";
+import { FileQuestion } from "lucide-react";
 
 import { useFirestore, useDoc, useCollection, useMemoFirebase } from "@/firebase";
-import { Party, RSVP, Message, UserProfile } from "@/lib/types";
+import { Party, RSVP, Message } from "@/lib/types";
 import { PartyDetails } from "@/components/party-details";
 import { RsvpSection } from "@/components/rsvp-section";
 import { ChatSection } from "@/components/chat-section";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { Skeleton } from "@/components/ui/skeleton";
 import Loading from "@/app/party/[id]/loading";
+import { Button } from "./ui/button";
 
 interface PartyPageClientProps {
   partyId: string;
+}
+
+function PartyNotFound() {
+  return (
+    <div className="container mx-auto p-4 md:p-8">
+      <div className="flex flex-col items-center justify-center text-center py-16">
+        <FileQuestion className="w-16 h-16 mb-4 text-primary" />
+        <h2 className="text-2xl font-bold tracking-tight mb-2">Party Not Found</h2>
+        <p className="text-muted-foreground mb-6">
+          This party does not exist or may have been removed.
+        </p>
+        <Button asChild>
+          <Link href="/">Go back to Homepage</Link>
+        </Button>
+      </div>
+    </div>
+  )
 }
 
 export function PartyPageClient({ partyId }: PartyPageClientProps) {
@@ -39,7 +58,7 @@ export function PartyPageClient({ partyId }: PartyPageClientProps) {
   }
 
   if (!party) {
-    notFound();
+    return <PartyNotFound />;
   }
 
   return (
