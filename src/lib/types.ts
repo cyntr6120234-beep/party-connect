@@ -7,6 +7,7 @@ export interface Party {
   dateTime: Timestamp;
   location: string;
   createdAt: Timestamp;
+  attendees: Attendee[];
 }
 
 export interface Attendee {

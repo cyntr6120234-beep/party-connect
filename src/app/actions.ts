@@ -22,6 +22,12 @@ const PartyFormSchema = z.object({
 });
 
 export async function createParty(formData: FormData) {
+  if (!db) {
+    return {
+      errors: { _form: ["Failed to create party. Firebase is not configured."] },
+    };
+  }
+
   const rawFormData = Object.fromEntries(formData.entries());
 
   // Manually parse date and time
@@ -77,6 +83,10 @@ const RsvpSchema = z.object({
 });
 
 export async function addRsvp(prevState: any, formData: FormData) {
+  if (!db) {
+    return { message: "Failed to RSVP. Firebase is not configured." };
+  }
+
   const validatedFields = RsvpSchema.safeParse({
     name: formData.get("name"),
     partyId: formData.get("partyId"),
@@ -111,6 +121,10 @@ const MessageSchema = z.object({
 });
 
 export async function sendMessage(formData: FormData) {
+  if (!db) {
+    return { success: false, error: "Failed to send message. Firebase is not configured." };
+  }
+
   const validatedFields = MessageSchema.safeParse({
     text: formData.get("text"),
     senderName: formData.get("senderName"),

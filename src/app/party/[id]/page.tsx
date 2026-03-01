@@ -11,6 +11,10 @@ type PartyPageProps = {
 };
 
 async function getParty(id: string): Promise<Party | null> {
+  if (!db) {
+    console.error("Cannot get party, Firebase is not configured.");
+    return null;
+  }
   const docRef = doc(db, "parties", id);
   const docSnap = await getDoc(docRef);
 
@@ -22,13 +26,7 @@ async function getParty(id: string): Promise<Party | null> {
 }
 
 export default async function PartyPage({ params }: PartyPageProps) {
-  const party = await getParty(params.id);
-
-  if (!party) {
-    notFound();
-  }
-
-  // A check to ensure Firebase config is set.
+  // A check to ensure Firebase config is set. This is a good practice for pages that need it.
   if (!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID) {
     return (
       <div className="container mx-auto p-4 md:p-8">
@@ -36,12 +34,17 @@ export default async function PartyPage({ params }: PartyPageProps) {
           <Terminal className="h-4 w-4" />
           <AlertTitle>Firebase Not Configured</AlertTitle>
           <AlertDescription>
-            You need to set up your Firebase configuration in{" "}
-            <code className="font-mono text-sm">src/lib/firebase.ts</code> and your environment variables to view party details.
+            You need to set up your Firebase environment variables to view party details.
           </AlertDescription>
         </Alert>
       </div>
     );
+  }
+
+  const party = await getParty(params.id);
+
+  if (!party) {
+    notFound();
   }
 
   return <PartyPageClient initialParty={party} />;

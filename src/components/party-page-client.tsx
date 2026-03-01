@@ -18,13 +18,18 @@ interface PartyPageClientProps {
 
 export function PartyPageClient({ initialParty }: PartyPageClientProps) {
   const [party, setParty] = useState<Party>(initialParty);
-  const [attendees, setAttendees] = useState<Attendee[]>([]);
+  const [attendees, setAttendees] = useState<Attendee[]>(initialParty.attendees || []);
   const [messages, setMessages] = useState<Message[]>([]);
   const [imageLoaded, setImageLoaded] = useState(false);
 
   const heroImage = PlaceHolderImages.find(p => p.id === 'party-hero');
 
   useEffect(() => {
+    if (!db) {
+      console.error("Cannot set up listeners, Firebase is not configured.");
+      return;
+    }
+
     const partyDocRef = doc(db, "parties", initialParty.id);
     const unsubscribeParty = onSnapshot(partyDocRef, (doc) => {
       if (doc.exists()) {
