@@ -2,55 +2,45 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
-import { doc, onSnapshot, collection, query, orderBy } from "firebase/firestore";
+import { doc, collection, query, orderBy } from "firebase/firestore";
+import { notFound } from "next/navigation";
 
-import { db } from "@/lib/firebase";
-import { Party, Attendee, Message } from "@/lib/types";
+import { useFirestore, useDoc, useCollection, useMemoFirebase } from "@/firebase";
+import { Party, RSVP, Message, UserProfile } from "@/lib/types";
 import { PartyDetails } from "@/components/party-details";
 import { RsvpSection } from "@/components/rsvp-section";
 import { ChatSection } from "@/components/chat-section";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { Skeleton } from "@/components/ui/skeleton";
+import Loading from "@/app/party/[id]/loading";
 
 interface PartyPageClientProps {
-  initialParty: Party;
+  partyId: string;
 }
 
-export function PartyPageClient({ initialParty }: PartyPageClientProps) {
-  const [party, setParty] = useState<Party>(initialParty);
-  const [attendees, setAttendees] = useState<Attendee[]>(initialParty.attendees || []);
-  const [messages, setMessages] = useState<Message[]>([]);
+export function PartyPageClient({ partyId }: PartyPageClientProps) {
+  const firestore = useFirestore();
   const [imageLoaded, setImageLoaded] = useState(false);
 
+  const partyRef = useMemoFirebase(() => doc(firestore, "parties", partyId), [firestore, partyId]);
+  const { data: party, isLoading: isPartyLoading } = useDoc<Party>(partyRef);
+
+  const rsvpsRef = useMemoFirebase(() => collection(firestore, "parties", partyId, "rsvps"), [firestore, partyId]);
+  const { data: rsvps } = useCollection<RSVP>(rsvpsRef);
+
+  const messagesRef = useMemoFirebase(() => collection(firestore, "parties", partyId, "chatMessages"), [firestore, partyId]);
+  const messagesQuery = useMemoFirebase(() => query(messagesRef, orderBy("timestamp", "asc")), [messagesRef]);
+  const { data: messages } = useCollection<Message>(messagesQuery);
+  
   const heroImage = PlaceHolderImages.find(p => p.id === 'party-hero');
 
-  useEffect(() => {
-    if (!db) {
-      console.error("Cannot set up listeners, Firebase is not configured.");
-      return;
-    }
+  if (isPartyLoading) {
+    return <Loading />;
+  }
 
-    const partyDocRef = doc(db, "parties", initialParty.id);
-    const unsubscribeParty = onSnapshot(partyDocRef, (doc) => {
-      if (doc.exists()) {
-        const partyData = doc.data() as Omit<Party, 'id'>;
-        setParty({ id: doc.id, ...partyData });
-        setAttendees(partyData.attendees || []);
-      }
-    });
-
-    const messagesColRef = collection(db, "parties", initialParty.id, "messages");
-    const messagesQuery = query(messagesColRef, orderBy("sentAt", "asc"));
-    const unsubscribeMessages = onSnapshot(messagesQuery, (snapshot) => {
-      const newMessages: Message[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
-      setMessages(newMessages);
-    });
-
-    return () => {
-      unsubscribeParty();
-      unsubscribeMessages();
-    };
-  }, [initialParty.id]);
+  if (!party) {
+    notFound();
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -73,10 +63,10 @@ export function PartyPageClient({ initialParty }: PartyPageClientProps) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-8">
             <PartyDetails party={party} />
-            <RsvpSection partyId={party.id} attendees={attendees} />
+            <RsvpSection partyId={party.id} rsvps={rsvps || []} />
           </div>
           <div className="lg:col-span-1">
-            <ChatSection partyId={party.id} messages={messages} />
+            <ChatSection partyId={party.id} messages={messages || []} />
           </div>
         </div>
       </div>

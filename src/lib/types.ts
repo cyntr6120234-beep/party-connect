@@ -2,22 +2,37 @@ import { Timestamp } from "firebase/firestore";
 
 export interface Party {
   id: string;
-  occasion: string;
+  name: string;
+  occasion: string; // From form, maps to name
   description: string;
   dateTime: Timestamp;
   location: string;
+  organizerId: string;
+  invitationLink: string;
+  themeSuggestion?: string;
   createdAt: Timestamp;
-  attendees: Attendee[];
+  updatedAt: Timestamp;
 }
 
-export interface Attendee {
-  name: string;
-  rsvpdAt: Timestamp;
+export interface UserProfile {
+    id: string;
+    displayName: string;
+}
+
+export interface RSVP {
+  id: string;
+  partyId: string;
+  guestId: string;
+  guestDisplayName: string;
+  status: 'Attending' | 'Declined' | 'Maybe';
+  respondedAt: Timestamp;
 }
 
 export interface Message {
   id: string;
-  text: string;
-  senderName: string;
-  sentAt: Timestamp;
+  partyId: string;
+  senderId: string;
+  senderDisplayName: string;
+  content: string;
+  timestamp: Timestamp;
 }
